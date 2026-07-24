@@ -1,61 +1,174 @@
 # Mobile Price Classification
 
-스마트폰 하드웨어 사양으로 가격대 `0–3`을 예측한 다중분류 프로젝트입니다. 첨부된 전처리·모델 비교·최종 최적화 노트북과 발표자료를 기준으로 저장소를 수정했습니다.
+> **스마트폰 하드웨어 사양으로 가격 등급 0-3을 분류하고, 고가 제품을 낮은 가격대로 오분류하는 손실을 줄이기 위해 class 3 recall을 중심으로 최적화한 다중분류 프로젝트입니다.**
 
-## Data
+[![Python](https://img.shields.io/badge/Python-3.x-blue)](https://www.python.org/) ![Model](https://img.shields.io/badge/Final%20Model-Logistic%20Regression-orange) ![Metric](https://img.shields.io/badge/Business%20Metric-Class%203%20Recall-green)
 
-Kaggle Mobile Price Classification 데이터셋을 사용했습니다.
+## At a Glance
 
-- train: 2,000 rows, 20 input variables + `price_range`
-- test: 1,000 rows, 20 input variables + `id`
-- target: 4개 가격 등급이 균형 있게 분포
-- 원본 데이터에 결측값 없음
+| Item | Description |
+|---|---|
+| Project type | Multiclass classification / Business-metric optimization |
+| Period | 2026.01.02 - 2026.02.25 |
+| Activity | DF winter short-term program |
+| Dataset | Kaggle Mobile Price Classification |
+| Observations | 2,000 devices |
+| Classes | Four balanced price ranges, 500 observations each |
+| Final model | Logistic Regression |
+| Primary metrics | Macro F1 and class 3 recall |
+| Core stack | Python, Pandas, scikit-learn, SciPy |
 
-## Preprocessing & EDA
+## Problem
 
-- 배터리, RAM, 화면 해상도, 카메라, 통신 기능 등 변수 점검
-- `sc_total = sc_h × sc_w`, `px_total = px_height × px_width` 파생변수 생성
-- 이진 범주형 변수와 가격대: Chi-square test
-- 연속형 변수와 가격대: Kruskal–Wallis test
-- 중복 정보와 설명력이 낮은 변수를 검토한 뒤 학습 데이터 생성
+The dataset contains battery capacity, RAM, internal memory, camera specifications, screen size, pixel resolution, and connectivity features. The task is to classify each device into one of four price ranges.
 
-## Modeling
+A model with high overall accuracy can still be costly if it systematically classifies premium products as cheaper products. The project therefore frames the problem as:
 
-1. Random Forest baseline과 KFold/StratifiedKFold 비교
-2. Logistic Regression, SVM, KNN, Decision Tree, Random Forest 등 후보 비교
-3. 1차 선택 기준은 macro F1
-4. 실제 활용 관점에서 가장 비싼 class 3의 recall을 핵심 보조 지표로 설정
-5. Logistic Regression의 `C`와 `class_weight`를 GridSearch하여 class 3 false negative를 줄임
+> **How can we maintain balanced multiclass performance while reducing false negatives for the highest price class?**
+
+## Dataset
+
+The original training data contains **2,000 rows and 21 columns**, including the target. All four target classes are perfectly balanced.
+
+| Class | Meaning | Count |
+|---:|---|---:|
+| 0 | Lowest price range | 500 |
+| 1 | Lower-middle price range | 500 |
+| 2 | Upper-middle price range | 500 |
+| 3 | Highest price range | 500 |
+
+Feature groups include:
+
+- Battery and performance: `battery_power`, `clock_speed`, `ram`, `n_cores`
+- Storage: `int_memory`
+- Camera: `fc`, `pc`
+- Display: `px_height`, `px_width`, `sc_h`, `sc_w`
+- Physical properties: `mobile_wt`, `m_dep`
+- Connectivity: Bluetooth, dual SIM, 3G, 4G, touch screen, Wi-Fi
+
+## Exploratory Analysis and Feature Engineering
+
+- Verified data types, missing values, class balance, and feature distributions.
+- Created `sc_total` to represent screen-area information.
+- Created `px_total = px_height × px_width` to represent total pixel capacity.
+- Examined categorical features using the Chi-square test.
+- Examined numerical features using the Kruskal-Wallis test.
+- Removed weak or redundant variables based on statistical and modeling evidence.
+
+The final submitted preprocessed table retained:
+
+```text
+battery_power, int_memory, mobile_wt, ram, px_total, price_range
+```
+
+## Key Decisions
+
+### Why Macro F1 instead of accuracy alone?
+
+Macro F1 computes the F1 score independently for each class and then averages them, preventing strong performance on one class from hiding weak performance on another.
+
+### Why prioritize class 3 recall?
+
+Class 3 recall measures how many true premium devices the model successfully recognizes. A class 3 false negative represents a premium device assigned to a lower price category, which was defined as the more costly business error.
+
+### Why Logistic Regression?
+
+Multiple classifiers were compared, including Logistic Regression, SVM, KNN, Decision Tree, and Random Forest. Logistic Regression provided strong balanced performance, stable cross-validation behavior, and transparent class-weight adjustment.
+
+## Modeling Pipeline
+
+```text
+EDA and class-balance check
+        ↓
+Derived display features
+        ↓
+Chi-square / Kruskal-Wallis tests
+        ↓
+Feature selection and scaling
+        ↓
+Logistic Regression, SVM, KNN, tree models
+        ↓
+Cross-validated Macro F1 comparison
+        ↓
+Class-weight and hyperparameter tuning
+        ↓
+Confusion-matrix error analysis
+```
 
 ## Results
 
-발표자료에 기록된 최종 결과:
-
-| Metric | Before | Final |
+| Metric | Baseline Logistic Regression | Tuned model |
 |---|---:|---:|
 | Macro F1 | 0.9405 | **0.9445** |
 | Class 3 recall | - | **0.9670** |
 | Class 3 false negatives | 15 | **12** |
 
-오류는 대부분 실제 등급과 인접한 등급으로의 혼동이었고, 특히 `3 → 2` 오분류를 줄이는 데 초점을 맞췄습니다.
+The final tuning produced a modest Macro F1 improvement while reducing the number of premium devices missed by the model.
+
+## Error Analysis
+
+The confusion matrix was used to inspect not only how many predictions were wrong, but **which direction the errors occurred**. Particular attention was paid to class `3 → 2` errors because they directly correspond to underestimating premium products.
+
+This project demonstrates that final-model selection should reflect the cost structure of errors rather than rely on a single aggregate score.
+
+## Project Work
+
+- Conducted EDA and verified the balanced four-class structure.
+- Designed `sc_total` and `px_total` derived variables.
+- Used Chi-square and Kruskal-Wallis tests to support feature-selection decisions.
+- Compared multiple linear, kernel, distance-based, and tree-based classifiers.
+- Selected the final model using Macro F1 and business-oriented class 3 recall.
+- Tuned class weights and analyzed false negatives with a confusion matrix.
 
 ## Repository Structure
 
 ```text
-src/train.py
-notebooks/01_preprocessing.ipynb
-notebooks/02_model_comparison_and_tuning.ipynb
-data/raw/train.csv
-data/raw/test.csv
-data/processed/train_preprocessed.csv
-docs/presentation.pdf
+.
+├── README.md
+├── requirements.txt
+├── data
+│   ├── README.md
+│   └── sample
+│       └── train_preprocessed_sample.csv
+├── docs
+│   ├── README.md
+│   └── presentation_summary.md
+└── src
+    ├── train.py
+    └── train_submission.py
 ```
 
-## Run
+## How to Run
 
 ```bash
+git clone https://github.com/chanwoo0218/Mobile-Price-Classification.git
+cd Mobile-Price-Classification
 pip install -r requirements.txt
-python src/train.py --data data/processed/train_preprocessed.csv
 ```
 
-원본 노트북의 실험 흐름과 seed를 유지하면서, 저장소용 실행 스크립트는 재사용하기 쉽게 정리했습니다.
+Run the submission-derived pipeline:
+
+```bash
+python src/train_submission.py --data data/train.csv
+```
+
+The script reproduces feature engineering, preprocessing, cross-validation, and final evaluation. See `data/README.md` for the required schema.
+
+## Limitations
+
+- The dataset is small and artificially balanced, unlike many real product catalogs.
+- Price classes are ordinal, but the primary model treats them as nominal classes.
+- The business cost assigned to class 3 errors is a project assumption rather than a measured financial value.
+- Market price can also depend on brand, release timing, design, and demand variables absent from the dataset.
+
+## Future Work
+
+- Ordinal classification or cost-sensitive learning
+- Explicit cost matrix derived from business impact
+- Probability calibration and uncertainty-aware decisions
+- External validation using newer device data
+- Feature-attribution analysis for individual products
+
+## Portfolio
+
+The Korean-language project explanation and learning reflections are available on the [Notion portfolio page](https://app.notion.com/p/b3f82d8994c2833094278155ac67d45d).
