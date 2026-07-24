@@ -1,33 +1,61 @@
 # Mobile Price Classification
 
-모바일 기기의 하드웨어 스펙을 이용해 가격 범위 `0–3`을 예측한 다중분류 프로젝트입니다. 단순 정확도보다 **고가 제품(class 3)을 놓치지 않는 recall**을 핵심 비즈니스 지표로 설정했습니다.
+스마트폰 하드웨어 사양으로 가격대 `0–3`을 예측한 다중분류 프로젝트입니다. 첨부된 전처리·모델 비교·최종 최적화 노트북과 발표자료를 기준으로 저장소를 수정했습니다.
 
-## Workflow
+## Data
 
-1. 결측값·변수 타입·클래스 분포 확인
-2. `sc_total`, `px_total` 파생변수 생성
-3. 범주형 변수: Chi-square test
-4. 수치형 변수: Kruskal–Wallis test
-5. Logistic Regression과 SVM을 macro F1로 비교
-6. class 3 recall을 우선하고 macro F1을 보조 기준으로 튜닝
-7. Confusion Matrix로 `3 → 2` 오분류 분석
-8. class weight 조정으로 고가 제품의 false negative 감소
+Kaggle Mobile Price Classification 데이터셋을 사용했습니다.
 
-## Documented Result
+- train: 2,000 rows, 20 input variables + `price_range`
+- test: 1,000 rows, 20 input variables + `id`
+- target: 4개 가격 등급이 균형 있게 분포
+- 원본 데이터에 결측값 없음
 
-발표 자료에 기록된 최종 결과:
+## Preprocessing & EDA
 
-- Macro F1: `0.9405 → 0.9445`
-- Class 3 recall: `0.9670`
-- Class 3 false negatives: `15 → 12`
+- 배터리, RAM, 화면 해상도, 카메라, 통신 기능 등 변수 점검
+- `sc_total = sc_h × sc_w`, `px_total = px_height × px_width` 파생변수 생성
+- 이진 범주형 변수와 가격대: Chi-square test
+- 연속형 변수와 가격대: Kruskal–Wallis test
+- 중복 정보와 설명력이 낮은 변수를 검토한 뒤 학습 데이터 생성
+
+## Modeling
+
+1. Random Forest baseline과 KFold/StratifiedKFold 비교
+2. Logistic Regression, SVM, KNN, Decision Tree, Random Forest 등 후보 비교
+3. 1차 선택 기준은 macro F1
+4. 실제 활용 관점에서 가장 비싼 class 3의 recall을 핵심 보조 지표로 설정
+5. Logistic Regression의 `C`와 `class_weight`를 GridSearch하여 class 3 false negative를 줄임
+
+## Results
+
+발표자료에 기록된 최종 결과:
+
+| Metric | Before | Final |
+|---|---:|---:|
+| Macro F1 | 0.9405 | **0.9445** |
+| Class 3 recall | - | **0.9670** |
+| Class 3 false negatives | 15 | **12** |
+
+오류는 대부분 실제 등급과 인접한 등급으로의 혼동이었고, 특히 `3 → 2` 오분류를 줄이는 데 초점을 맞췄습니다.
+
+## Repository Structure
+
+```text
+src/train.py
+notebooks/01_preprocessing.ipynb
+notebooks/02_model_comparison_and_tuning.ipynb
+data/raw/train.csv
+data/raw/test.csv
+data/processed/train_preprocessed.csv
+docs/presentation.pdf
+```
 
 ## Run
 
 ```bash
 pip install -r requirements.txt
-python src/train.py --data data/train.csv
+python src/train.py --data data/processed/train_preprocessed.csv
 ```
 
-## Repository Note
-
-공개용 코드는 노션 포트폴리오와 최종 발표 자료에 기록된 분석 절차를 재현하도록 정리했습니다. 원본 노트북을 확보하면 동일 데이터 분할과 seed로 결과를 재검증해야 합니다.
+원본 노트북의 실험 흐름과 seed를 유지하면서, 저장소용 실행 스크립트는 재사용하기 쉽게 정리했습니다.
