@@ -12,6 +12,13 @@
 | 최종 모델 | Logistic Regression |
 | 주요 지표 | Macro F1, 3등급 Recall |
 
+## 발표자료
+
+[![PDF 발표자료](https://img.shields.io/badge/PDF-원본_발표자료_보기-EA4335?logo=adobeacrobatreader&logoColor=white)](docs/DF%204조%20최종%20발표.pdf)
+
+- [원본 발표자료 PDF 열기](docs/DF%204조%20최종%20발표.pdf)
+- [발표자료 핵심 내용 보기](docs/발표자료_요약.md)
+
 ## 분석 과정
 
 - 자료형·결측치·등급 균형과 변수 분포 점검
@@ -44,6 +51,7 @@
 │   ├── processed/train_preprocessed.csv
 │   └── sample/train_preprocessed_sample.csv
 ├── docs
+│   ├── DF 4조 최종 발표.pdf
 │   └── 발표자료_요약.md
 └── notebooks
     ├── 01_데이터_전처리.ipynb
